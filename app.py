@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from google_image_downloader import get_images_data
+from google_image_downloader import get_resized_images
 
 
 def main():
@@ -14,7 +14,7 @@ def main():
 
     st.markdown(query)
 
-    images = get_images_data(str(query), refresh)
+    images = get_resized_images(str(query), refresh)
 
     st.image(images, width=300)
 

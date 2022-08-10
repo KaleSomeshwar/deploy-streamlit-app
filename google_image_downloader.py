@@ -1,7 +1,6 @@
 """Google images downloading functions."""
 
 import glob
-import json
 import random
 import re
 import urllib
@@ -20,50 +19,33 @@ headers = {
 
 
 @st.cache(allow_output_mutation=True)
-def get_matched_data(query='minecraft shaders 8k photo'):
+def download_images(query='minecraft shaders 8k photo'):
     """Return matching data to the query."""
-    params = {"q": query, "tbm": "isch", "ijn": "0", }
-    html = requests.get("https://www.google.com/search", params=params, headers=headers)
-    soup = BeautifulSoup(html.text, 'lxml')
-    all_script_tags = soup.select('script')
-    # https://regex101.com/r/48UZhY/6
-    matched_data = ''.join(re.findall(r"AF_initDataCallback\(({key: 'ds:1'.*?)\);</script>",
-                                      str(all_script_tags)))
-    matched_data = json.dumps(matched_data)
-    matched_data = json.loads(matched_data)
-
-    # https://regex101.com/r/pdZOnW/3
-    matched_data = re.findall(r'\[\"GRID_STATE0\",null,\[\[1,\[0,\".*?\",(.*),\"All\",',
-                              matched_data)
-
-    matched_data_without_thumbnails = re.sub(
+    html = requests.get(f"https://www.google.com/search?tbm=isch&q={query}",
+                        headers=headers)
+    soup = BeautifulSoup(html.text, 'html.parser')
+    images = soup.find_all('img')
+    image_urls = []
+    for image in images:
+        src = image.get('src')
+        image_urls.append(src)
+    urls_without_thumbnails = re.sub(
         r'\[\"(https\:\/\/encrypted-tbn0\.gstatic\.com\/images\?.*?)\",\d+,\d+\]', '',
-        str(matched_data))
-
-    # https://regex101.com/r/fXjfb1/4
-    # https://stackoverflow.com/a/19821774/15164646
-    matched_images = re.findall(r"(?:'|,),\[\"(https:|http.*?)\",\d+,\d+\]",
-                                matched_data_without_thumbnails)
-
-    return matched_images
+        str(image_urls))
+    urls_without_thumbnails = urls_without_thumbnails.replace("'", '').split(',')
+    urls_without_thumbnails = [url for url in urls_without_thumbnails if not url.endswith('.gif')]
+    return urls_without_thumbnails
 
 
-def get_images_data(query, refresh):
+def get_resized_images(query, refresh):
     """Save a random image from suggested images."""
-    matched_images = get_matched_data(query)
+    matched_images = download_images(query)
     Path(f'temp_images').mkdir(parents=True, exist_ok=True)
 
     if refresh:
         random.shuffle(matched_images)
 
     for index, image in enumerate(matched_images[:10]):
-        # https://stackoverflow.com/a/4004439/15164646 comment by Frédéric Hamidi
-        image = bytes(image, 'ascii').decode('unicode-escape')
-        image = bytes(image, 'ascii').decode('unicode-escape')  # to fix the image
-
-        opener = urllib.request.build_opener()
-        opener.addheaders = [('User-Agent', headers['User-Agent'])]
-        urllib.request.install_opener(opener)
         urllib.request.urlretrieve(image, f'temp_images/image_{index:02}.jpg')
 
     images = sorted(glob.glob('temp_images' + '/*.jpg'))
@@ -80,4 +62,4 @@ def get_images_data(query, refresh):
 
 if __name__ == '__main__':
     QUERY = 'wow'
-    _ = get_images_data(QUERY, False)
+    _ = get_resized_images(QUERY, False)
